@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="es">
+<head>
+<title>Mini Juego</title>
+<style>
+  body {
+    margin: 0;
+    background: #111;
+    color: white;
+    font-family: sans-serif;
+    text-align: center;
+    overflow: hidden;
+  }
+  #puntaje, #vidas, #nivel {
+    font-size: 20px;
+    padding: 5px;
+    display: inline-block;
+    margin: 0 12px;
+  }
+  #juego {
+    position: relative;
+    width: 500px;
+    height: 500px;
+    margin: 0 auto;
+    background: #222;
+    overflow: hidden;
+    border: 2px solid #444;
+  }
+  .estrella {
+    position: absolute;
+    font-size: 30px;
+    top: -30px;
+  }
+  #canasta {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    font-size: 40px;
+    transform: translateX(-50%);
+  }
+  #gameOverPantalla {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.85);
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  #gameOverPantalla h2 {
+    color: red;
+    font-size: 28px;
+    padding: 0 20px;
+    text-align: center;
+  }
+  #botonReiniciar {
+    margin-top: 20px;
+    padding: 12px 24px;
+    font-size: 18px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  #botonReiniciar:hover {
+    background: #45a049;
+  }
+</style>
+</head>
+<body>
+
+<h1 id="titulo">¡Bienvenido al juego!</h1>
+<div id="puntaje">Puntos: 0</div>
+<div id="vidas">Vidas: 3</div>
+<div id="nivel">Nivel: 1</div>
+<div id="juego">
+  <div id="canasta">🧺</div>
+  <div id="gameOverPantalla">
+    <h2 id="mensajeFinal">💀 Game Over</h2>
+    <button id="botonReiniciar">🔄 Jugar de nuevo</button>
+  </div>
+</div>
+
+<script>
+// Leer los datos que vienen del formulario en la URL
+const params = new URLSearchParams(window.location.search);
+const nombre = params.get("Name");
+const colorFavorito = params.get("color");
+
+const titulo = document.getElementById("titulo");
+const canasta = document.getElementById("canasta");
+const juego = document.getElementById("juego");
+const puntajeDiv = document.getElementById("puntaje");
+const vidasDiv = document.getElementById("vidas");
+const nivelDiv = document.getElementById("nivel");
+const gameOverPantalla = document.getElementById("gameOverPantalla");
+const mensajeFinal = document.getElementById("mensajeFinal");
+const botonReiniciar = document.getElementById("botonReiniciar");
+
+if (nombre) {
+  titulo.textContent = "¡Bienvenido, " + nombre + "!";
+}
+if (colorFavorito) {
+  canasta.style.filter = "drop-shadow(0 0 10px " + colorFavorito + ")";
+}
+
+let puntos = 0;
+let vidas = 3;
+let juegoTerminado = false;
+let generador = null;
+let dificultadInterval = null;
+
+// Velocidad y frecuencia iniciales
+let velocidadCaida = 4;      // píxeles por tick
+let intervaloSpawn = 1000;   // ms entre estrellas nuevas
+let nivel = 1;
+
+juego.addEventListener("mousemove", function(e) {
+  if (juegoTerminado) return;
+  const rect = juego.getBoundingClientRect();
+  const canastaX = e.clientX - rect.left;
+  canasta.style.left = canastaX + "px";
+});
+
+function crearEstrella() {
+  if (juegoTerminado) return;
+
+  const estrella = document.createElement("div");
+  estrella.classList.add("estrella");
+  estrella.textContent = "⭐";
+  estrella.style.left = Math.random() * (juego.clientWidth - 30) + "px";
+  juego.appendChild(estrella);
+
+  let posY = -30;
+  const caida = setInterval(function() {
+    if (juegoTerminado) {
+      clearInterval(caida);
+      estrella.remove();
+      return;
+    }
+
+    posY += velocidadCaida; // usa la velocidad actual, que va subiendo
+    estrella.style.top = posY + "px";
+
+    const estrellaRect = estrella.getBoundingClientRect();
+    const canastaRect = canasta.getBoundingClientRect();
+
+    const choco =
+      estrellaRect.bottom >= canastaRect.top &&
+      estrellaRect.left < canastaRect.right &&
+      estrellaRect.right > canastaRect.left;
+
+    if (choco) {
+      puntos++;
+      puntajeDiv.textContent = "Puntos: " + puntos;
+      estrella.remove();
+      clearInterval(caida);
+    } else if (posY > juego.clientHeight) {
+      vidas--;
+      vidasDiv.textContent = "Vidas: " + vidas;
+      estrella.remove();
+      clearInterval(caida);
+
+      if (vidas <= 0) {
+        terminarJuego();
+      }
+    }
+  }, 20);
+}
+
+// Cada 5 segundos, sube la dificultad: más velocidad y estrellas más seguidas
+function aumentarDificultad() {
+  velocidadCaida += 0.5;
+  nivel++;
+  nivelDiv.textContent = "Nivel: " + nivel;
+
+  // Reduce el intervalo de aparición, con un mínimo para que no sea imposible
+  if (intervaloSpawn > 300) {
+    intervaloSpawn -= 50;
+    clearInterval(generador);
+    generador = setInterval(crearEstrella, intervaloSpawn);
+  }
+}
+
+function terminarJuego() {
+  juegoTerminado = true;
+  clearInterval(generador);
+  clearInterval(dificultadInterval);
+  mensajeFinal.textContent = "💀 Game Over — Puntaje final: " + puntos + " (Nivel " + nivel + ")";
+  gameOverPantalla.style.display = "flex";
+
+  document.querySelectorAll(".estrella").forEach(e => e.remove());
+}
+
+function iniciarJuego() {
+  puntos = 0;
+  vidas = 3;
+  nivel = 1;
+  velocidadCaida = 4;
+  intervaloSpawn = 1000;
+  juegoTerminado = false;
+
+  puntajeDiv.textContent = "Puntos: 0";
+  vidasDiv.textContent = "Vidas: 3";
+  nivelDiv.textContent = "Nivel: 1";
+  gameOverPantalla.style.display = "none";
+
+  document.querySelectorAll(".estrella").forEach(e => e.remove());
+
+  clearInterval(generador);
+  clearInterval(dificultadInterval);
+
+  generador = setInterval(crearEstrella, intervaloSpawn);
+  dificultadInterval = setInterval(aumentarDificultad, 5000); // sube dificultad cada 5s
+}
+
+botonReiniciar.addEventListener("click", iniciarJuego);
+
+iniciarJuego();
+</script>
+
+</body>
+</html>
